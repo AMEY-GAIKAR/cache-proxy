@@ -6,11 +6,13 @@ import (
 	"log"
 	"net/http"
 
-	"cache-proxy/internal/proxy"
+	"github.com/AMEY-GAIKAR/cache-proxy/internal/proxy"
 )
 
+const PORT = 8080
+
 func main() {
-	port := flag.Int("port", 8080, "port on which the caching proxy server will run")
+	port := flag.Int("port", PORT, "port on which the cache-proxy server will run")
 	origin := flag.String("origin", "", "url of the server to which requests will be forwarded")
 	clearCache := flag.Bool("clear--cache", false, "clear the cache")
 	flag.Parse()
@@ -30,6 +32,7 @@ func main() {
 	}
 
 	http.Handle("/", proxy)
+
 	err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
 	if err != nil {
 		log.Fatal(err)

@@ -8,19 +8,19 @@ import (
 	"sync"
 	"time"
 
-	"cache-proxy/internal/cache"
+	"github.com/AMEY-GAIKAR/cache-proxy/internal/cache"
 )
 
 type Proxy struct {
 	Origin string
-	Cache  map[string]*cache.Cache
+	Cache  *cache.Cache
 	Mutex  sync.RWMutex
 }
 
-func InitProxy(origin string) *Proxy {
+func InitProxy(originURL string) *Proxy {
 	return &Proxy{
-		Origin: origin,
-		Cache:  make(map[string]*cache.Cache),
+		Origin: originURL,
+		Cache:  cache.InitCache(),
 		Mutex:  sync.RWMutex{},
 	}
 }
@@ -28,7 +28,7 @@ func InitProxy(origin string) *Proxy {
 func (p *Proxy) ClearCache() {
 	p.Mutex.Lock()
 	defer p.Mutex.Unlock()
-	p.Cache = make(map[string]*cache.Cache)
+	p.Cache.Clear()
 	log.Printf("Cleared cache")
 }
 
@@ -42,22 +42,19 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	key := fmt.Sprintf("%s:%s", r.Method, r.URL.Path)
 
-	p.Mutex.RLock()
-	if val, ok := p.Cache[key]; ok {
-		p.Mutex.RUnlock()
-		WriteResponseWithHeaders(w, val.Response, val.ResponseBody, cache.HIT, key)
+	if val, ok := p.Cache.Get(key); ok {
+		WriteResponseWithHeaders(w, val.Response, val.ResponseBody, cache.CACHE_HIT, key)
 		return
 	}
-	p.Mutex.RUnlock()
 
-	log.Printf("Cache not present for key: %s\n", key)
+	log.Printf("Cache not present for: %s\n", key)
+
 	resp, err := http.Get(p.Origin + r.URL.String())
 	if err != nil {
 		http.Error(w, "Error forwarding request", http.StatusInternalServerError)
 		log.Println(err)
 		return
 	}
-	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -66,11 +63,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p.Mutex.Lock()
-	p.Cache[key] = cache.InitCache(resp, body, time.Now())
-	p.Mutex.Unlock()
+	newObj := cache.CreateCacheObject(resp, body, time.Now())
+	p.Cache.Set(key, newObj)
 
-	WriteResponseWithHeaders(w, resp, body, cache.MISS, key)
+	WriteResponseWithHeaders(w, resp, body, cache.CACHE_MISS, key)
 }
 
 func WriteResponseWithHeaders(w http.ResponseWriter, r *http.Response, body []byte, cacheHeader string, key string) {
