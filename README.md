@@ -5,7 +5,7 @@ In-Memory Cache Proxy Server in Go
 Usage
 
 ```bash
-go run cmd/main.go -port <int> -origin <url string> -clear--cache false
+go run cmd/main.go -port <int> -origin <url string>
 ```
 
 Example usage
